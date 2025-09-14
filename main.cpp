@@ -92,7 +92,7 @@ std::vector<TradeRequest> OrderBook::addOrder(Order &order) {
         // 1. The incoming order is filled
         // 2. The quantity for the Buy order price is exhausted, at which point we should remove that order and move to the next highest price
         // When we move to the next highest price we should still check if the prices allow for a tra
-        while (order.quantity > 0 && !bids.empty() && order.price > bids.begin()->first) {
+        while (order.quantity > 0 && !bids.empty() && order.price <= bids.begin()->first) {
             auto &[price, orderList] = *bids.begin();
             auto &restingOrder = orderList.front();
             const Quantity tradeQuantity = std::min(order.quantity, restingOrder.quantity);
@@ -166,31 +166,16 @@ std::vector<std::string> parseTokens(const std::string &line, char delimiter);
 int main() {
     OrderBook orderBook;
     std::ifstream inputFile("../data.txt");
+    std::vector<Order> orders = getOrders(inputFile);
 
-    for (std::vector<Order> orders = getOrders(inputFile); auto &order: orders) {
+    for (auto &order: orders) {
         orderBook.addOrder(order);
     }
 
-    std::cout << "Looking at buy orders: " << std::endl;
-    for (const auto bids = orderBook.getBids(); const auto &pricePointBids: bids | std::views::values) {
-        for (auto order: pricePointBids) {
-            const auto [orderId, quantity, price, side] = order;
-            std::cout << orderId << " " << formatPrice(price) << " " << quantity << " ";
-            if (side == Side::Buy) std::cout << "Buy";
-            else if (side == Side::Sell) std::cout << "Sell";
-            std::cout << std::endl;
-        }
-    }
-
-    std::cout << "\nLooking at sell orders: " << std::endl;
-
-    for (const auto asks = orderBook.getAsks(); const auto &pricePointAsks: asks | std::views::values) {
-        for (auto order: pricePointAsks) {
-            const auto [orderId, quantity, price, side] = order;
-            std::cout << orderId << " " << formatPrice(price) << " " << quantity << " ";
-            if (side == Side::Buy) std::cout << "Buy";
-            else if (side == Side::Sell) std::cout << "Sell";
-            std::cout << std::endl;
+    // In main()
+    for (auto &order: orders) {
+        for (std::vector<TradeRequest> trades = orderBook.addOrder(order); const auto &trade: trades) {
+            std::cout << "TRADE: " << trade.quantity << " @ " << formatPrice(trade.price) << std::endl;
         }
     }
 }
