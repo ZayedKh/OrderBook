@@ -5,6 +5,7 @@
 #include <vector>
 #include <sstream>
 #include <iterator>
+#include <ranges>
 
 using Price = std::uint64_t;
 using Quantity = std::uint32_t;
@@ -33,11 +34,11 @@ public:
 
     void removeOrder(OrderId orderId);
 
-    std::map<Price, std::list<Order> > getBids() { return bids; }
+    std::map<Price, std::list<Order>, std::greater<Price> > getBids() { return bids; }
     std::map<Price, std::list<Order> > getAsks() { return asks; }
 
 private:
-    std::map<Price, std::list<Order> > bids;
+    std::map<Price, std::list<Order>, std::greater<Price> > bids;
     std::map<Price, std::list<Order> > asks;
 
     // Lookup table to find orders by their ID, for efficient removal O(1) compared to O(n)
@@ -89,17 +90,39 @@ void OrderBook::removeOrder(OrderId orderId) {
 
 std::vector<Order> getOrders(std::ifstream &inFile);
 
+float formatPrice(Price price);
+
 std::vector<std::string> parseTokens(const std::string &line, char delimiter);
 
 int main() {
     OrderBook orderBook;
     std::ifstream inputFile("../data.txt");
-    std::vector<Order> orders = getOrders(inputFile);
 
-    for (Order o: orders) {
-        std::cout << o.orderId << " " << o.quantity << " " << o.price << " " << (o.side == Side::Buy ? "Buy" : "Sell")
-                << std::endl;
-        orderBook.addOrder(o);
+    for (std::vector<Order> orders = getOrders(inputFile); const auto &order: orders) {
+        orderBook.addOrder(order);
+    }
+
+    std::cout << "Looking at buy orders: " << std::endl;
+    for (const auto bids = orderBook.getBids(); const auto &pricePointBids: bids | std::views::values) {
+        for (auto order: pricePointBids) {
+            const auto [orderId, quantity, price, side] = order;
+            std::cout << orderId << " " << formatPrice(price) << " " << quantity << " ";
+            if (side == Side::Buy) std::cout << "Buy";
+            else if (side == Side::Sell) std::cout << "Sell";
+            std::cout << std::endl;
+        }
+    }
+
+    std::cout << "\nLooking at sell orders: " << std::endl;
+
+    for (const auto asks = orderBook.getAsks(); const auto &pricePointAsks: asks | std::views::values) {
+        for (auto order: pricePointAsks) {
+            const auto [orderId, quantity, price, side] = order;
+            std::cout << orderId << " " << formatPrice(price) << " " << quantity << " ";
+            if (side == Side::Buy) std::cout << "Buy";
+            else if (side == Side::Sell) std::cout << "Sell";
+            std::cout << std::endl;
+        }
     }
 }
 
@@ -139,4 +162,9 @@ std::vector<std::string> parseTokens(const std::string &line, const char delimit
     while (getline(stream, token, delimiter)) tokens.push_back(token);
 
     return tokens;
+}
+
+float formatPrice(const Price price) {
+    const float formattedPrice = static_cast<float>(price) / 100;
+    return formattedPrice;
 }
