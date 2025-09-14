@@ -202,7 +202,6 @@ std::vector<Order> getOrders(std::ifstream &inFile) {
     std::string line;
     std::vector<Order> orders;
 
-
     // We receive data in format: orderId,quantity,price,side (e.g., 1,100,10.5,Buy)
     while (std::getline(inFile, line)) {
         std::vector<std::string> tokens = parseTokens(line, ',');
