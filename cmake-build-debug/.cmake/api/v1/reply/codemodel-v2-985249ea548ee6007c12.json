@@ -39,7 +39,7 @@
 				{
 					"directoryIndex" : 0,
 					"id" : "OrderBook::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-OrderBook-Debug-0f55d62013d34cf83776.json",
+					"jsonFile" : "target-OrderBook-Debug-6be6b6b2f8d986e119ee.json",
 					"name" : "OrderBook",
 					"projectIndex" : 0
 				}
@@ -55,6 +55,6 @@
 	"version" : 
 	{
 		"major" : 2,
-		"minor" : 7
+		"minor" : 8
 	}
 }
