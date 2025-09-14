@@ -4,8 +4,9 @@
 #include <list>
 #include <vector>
 #include <sstream>
+#include <iterator>
 
-using Price = double;
+using Price = std::uint64_t;
 using Quantity = std::uint32_t;
 using OrderId = long long;
 
@@ -28,37 +29,78 @@ struct TradeRequest {
 
 class OrderBook {
 public:
-    void addOrder(const Order &order) {
-        int priceKey = static_cast<int>(order.price * 100); // Convert price to integer key (e.g., in cents)
-        if (order.side == Side::Buy) {
-            bids[priceKey].push_back(order);
-        } else if (order.side == Side::Sell) {
-            asks[priceKey].push_back(order);
-        }
-    };
+    void addOrder(const Order &order);
 
     void removeOrder(OrderId orderId);
 
+    std::map<Price, std::list<Order> > getBids() { return bids; }
+    std::map<Price, std::list<Order> > getAsks() { return asks; }
+
 private:
-    std::map<int, std::list<Order> > bids;
-    std::map<int, std::list<Order> > asks;
+    std::map<Price, std::list<Order> > bids;
+    std::map<Price, std::list<Order> > asks;
+
+    // Lookup table to find orders by their ID, for efficient removal O(1) compared to O(n)
+    std::unordered_map<OrderId, std::list<Order>::iterator> orderIdLookup;
 };
 
-OrderBook orderBook;
+void OrderBook::addOrder(const Order &order) {
+    const int priceKey = static_cast<int>(order.price);
+    if (order.side == Side::Buy) {
+        bids[priceKey].push_back(order);
+        const auto it = std::prev(bids[priceKey].end());
+        orderIdLookup[order.orderId] = it;
+    } else if (order.side == Side::Sell) {
+        asks[priceKey].push_back(order);
+        const auto it = std::prev(asks[priceKey].end());
+        orderIdLookup[order.orderId] = it;;
+    } else {
+        std::cerr << "Invalid side, needs to be either Buy or Sell" << std::endl;
+    }
+}
+
+void OrderBook::removeOrder(OrderId orderId) {
+    const auto mapEntry = orderIdLookup.find(orderId);
+
+    if (mapEntry == orderIdLookup.end()) {
+        std::cerr << "Non-existent order id " << orderId << std::endl;
+    }
+
+    const auto &orderIt = mapEntry->second;
+    const Order &order = *orderIt;
+    const Price priceKey = order.price;
+
+    if (order.side == Side::Buy) {
+        bids.at(priceKey).erase(orderIt);
+
+        if (bids.at(priceKey).empty()) {
+            bids.erase(priceKey);
+        }
+    } else if (order.side == Side::Sell) {
+        asks.at(priceKey).erase(orderIt);
+
+        if (asks.at(priceKey).empty()) {
+            asks.erase(priceKey);
+        }
+    }
+
+    orderIdLookup.erase(orderId);
+}
 
 std::vector<Order> getOrders(std::ifstream &inFile);
 
 std::vector<std::string> parseTokens(const std::string &line, char delimiter);
 
 int main() {
+    OrderBook orderBook;
     std::ifstream inputFile("../data.txt");
-
     std::vector<Order> orders = getOrders(inputFile);
 
-    for (Order o: orders)
+    for (Order o: orders) {
         std::cout << o.orderId << " " << o.quantity << " " << o.price << " " << (o.side == Side::Buy ? "Buy" : "Sell")
-                <<
-                std::endl;
+                << std::endl;
+        orderBook.addOrder(o);
+    }
 }
 
 std::vector<Order> getOrders(std::ifstream &inFile) {
@@ -69,13 +111,17 @@ std::vector<Order> getOrders(std::ifstream &inFile) {
     std::vector<Order> orders;
 
 
-    // We receive data in format: orderId,side,quantity,price (e.g., 1,B,100,10.5)
+    // We receive data in format: orderId,quantity,price,side (e.g., 1,100,10.5,Buy)
     while (std::getline(inFile, line)) {
         std::vector<std::string> tokens = parseTokens(line, ',');
+        if (tokens.size() != 4) {
+            std::cerr << "Skipping invalid line: " << line << std::endl;
+            continue;
+        }
         orders.emplace_back(Order{
                 std::stoll(tokens[0]),
                 static_cast<Quantity>(stoul(tokens[1])),
-                std::stod(tokens[2]),
+                static_cast<Price>(std::stod(tokens[2]) * 100), // Convert to integer representation for full accuracy
                 tokens[3] == "Buy" ? Side::Buy : Side::Sell,
             }
         );
